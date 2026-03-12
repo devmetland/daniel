@@ -126,6 +126,14 @@ class AnalysisWithInterpretationResponse(BaseModel):
     timestamp: str
 
 
+class AnalysisResponse(BaseModel):
+    filename: str
+    features: FeatureResponse
+    predictions: PredictionResponse
+    timestamp: str
+    disclaimer: str
+
+
 class BatchAnalysisResponse(BaseModel):
     total_processed: int
     successful: int
@@ -230,9 +238,9 @@ async def analyze_upload_with_interpretation(
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
-        # Extract features
-        extractor = GraphologyFeatureExtractor(str(file_path))
-        features = extractor.extract_all_features()
+        # Extract features (using updated API without constructor argument)
+        extractor = GraphologyFeatureExtractor()
+        features = extractor.extract_all_features(str(file_path))
         
         # Predict with interpretation
         result = predictor.predict_with_interpretation(features, candidate_id=candidate_id or safe_filename)
@@ -293,9 +301,9 @@ async def analyze_upload(file: UploadFile = File(..., description="Handwriting i
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
-        # Extract features
-        extractor = GraphologyFeatureExtractor(str(file_path))
-        features = extractor.extract_all_features()
+        # Extract features (using updated API without constructor argument)
+        extractor = GraphologyFeatureExtractor()
+        features = extractor.extract_all_features(str(file_path))
         
         # Predict scores
         predictions = predictor.predict(features)
@@ -352,9 +360,9 @@ async def analyze_batch(files: List[UploadFile] = File(...)):
             with open(file_path, "wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
             
-            # Extract features
-            extractor = GraphologyFeatureExtractor(str(file_path))
-            features = extractor.extract_all_features()
+            # Extract features (using updated API without constructor argument)
+            extractor = GraphologyFeatureExtractor()
+            features = extractor.extract_all_features(str(file_path))
             
             # Predict scores
             predictions = predictor.predict(features)
@@ -388,29 +396,42 @@ async def analyze_batch(files: List[UploadFile] = File(...)):
 
 @app.get("/analyze/directory",
          tags=["Analysis"],
-         summary="Process all images in upload directory")
+         summary="Process all images in upload directory with interpretations")
 async def analyze_directory():
     """
-    Process all images currently in the upload directory.
+    Process all images currently in the upload directory WITH detailed interpretations.
     
     Useful when images are copied directly to the directory
     instead of using the upload endpoint.
+    
+    Returns:
+    - Features extracted from each image
+    - Numerical predictions (scores)
+    - Detailed interpretations for each trait
+    - Summary and recommendations
     """
     try:
         results = process_directory(str(UPLOAD_DIR))
         
-        # Generate predictions for each
+        # Generate predictions and interpretations for each
         analyses = []
         for features in results:
             filename = features.pop('filename', 'unknown')
+            
+            # Get basic predictions
             predictions = predictor.predict(features)
+            
+            # Get detailed interpretations
+            interpretation = predictor.predict_with_interpretation(features, candidate_id=filename)
             
             save_prediction_result(filename, features, predictions)
             
             analyses.append({
                 "filename": filename,
                 "features": features,
-                "predictions": predictions
+                "predictions": predictions,
+                "interpretations": interpretation['interpretations'],
+                "summary": interpretation['summary']
             })
         
         return {
