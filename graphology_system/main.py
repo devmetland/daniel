@@ -96,12 +96,34 @@ class PredictionResponse(BaseModel):
     discipline_score: float = Field(..., ge=0, le=100, description="Discipline level (0-100)")
 
 
-class AnalysisResponse(BaseModel):
+class InterpretationDetail(BaseModel):
+    trait: str
+    score: float
+    level: str
+    category: str
+    description: str
+    strengths: List[str]
+    development_areas: List[str]
+    interview_suggestions: List[str]
+
+
+class SummaryResponse(BaseModel):
+    average_score: float
+    strongest_area: Dict
+    developing_area: Dict
+    level_distribution: Dict
+    recommended_opening_approach: str
+
+
+class AnalysisWithInterpretationResponse(BaseModel):
     filename: str
     features: FeatureResponse
-    predictions: PredictionResponse
+    scores: PredictionResponse
+    interpretations: Dict[str, InterpretationDetail]
+    summary: SummaryResponse
+    report: str
+    ethical_notice: str
     timestamp: str
-    disclaimer: str
 
 
 class BatchAnalysisResponse(BaseModel):
@@ -167,6 +189,73 @@ async def health_check():
         "upload_dir_exists": UPLOAD_DIR.exists(),
         "timestamp": datetime.now().isoformat()
     }
+
+
+@app.post("/analyze/upload-with-interpretation", 
+          response_model=AnalysisWithInterpretationResponse,
+          tags=["Analysis"],
+          summary="Upload and analyze with detailed interpretation")
+async def analyze_upload_with_interpretation(
+    file: UploadFile = File(..., description="Handwriting image (JPG, PNG, BMP)"),
+    candidate_id: Optional[str] = None
+):
+    """
+    Upload a handwriting image and get comprehensive psychological analysis WITH detailed interpretations.
+    
+    **This endpoint provides:**
+    - Raw numerical scores (0-100)
+    - Detailed descriptions for each trait
+    - Interview suggestions
+    - Strengths and development areas
+    - Formatted text report
+    
+    **Supported formats:** JPG, PNG, BMP, TIFF
+    """
+    # Validate file type
+    allowed_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif'}
+    file_ext = Path(file.filename).suffix.lower()
+    
+    if file_ext not in allowed_extensions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type. Allowed: {', '.join(allowed_extensions)}"
+        )
+    
+    try:
+        # Save uploaded file
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_filename = f"{timestamp}_{file.filename}"
+        file_path = UPLOAD_DIR / safe_filename
+        
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Extract features
+        extractor = GraphologyFeatureExtractor(str(file_path))
+        features = extractor.extract_all_features()
+        
+        # Predict with interpretation
+        result = predictor.predict_with_interpretation(features, candidate_id=candidate_id or safe_filename)
+        
+        # Build response
+        response = AnalysisWithInterpretationResponse(
+            filename=safe_filename,
+            features=FeatureResponse(**features),
+            scores=PredictionResponse(**result['scores']),
+            interpretations={
+                k: InterpretationDetail(**v) 
+                for k, v in result['interpretations'].items()
+            },
+            summary=SummaryResponse(**result['summary']),
+            report=result['report'],
+            ethical_notice=result['ethical_notice'],
+            timestamp=datetime.now().isoformat()
+        )
+        
+        return response
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 
 @app.post("/analyze/upload", 

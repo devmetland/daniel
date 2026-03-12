@@ -124,13 +124,32 @@ Dokumentasi API tersedia di:
 
 ### 2. Upload Gambar untuk Analisis
 
-**Via API:**
+**Via API (Basic - Scores Only):**
 ```bash
 curl -X POST "http://localhost:8000/analyze/upload" \
   -H "accept: application/json" \
   -H "Content-Type: multipart/form-data" \
   -F "file=@sample_handwriting.jpg"
 ```
+
+**Via API (With Detailed Interpretation - RECOMMENDED):**
+```bash
+curl -X POST "http://localhost:8000/analyze/upload-with-interpretation?candidate_id=CAND-2025-001" \
+  -H "accept: application/json" \
+  -H "Content-Type: multipart/form-data" \
+  -F "file=@sample_handwriting.jpg"
+```
+
+Endpoint ini memberikan:
+- ✅ Skor numerik (0-100) untuk setiap trait
+- ✅ Deskripsi detail dalam bahasa Indonesia untuk setiap trait
+- ✅ Kategori level (LOW/MODERATE/HIGH)
+- ✅ Kekuatan potensial
+- ✅ Area pengembangan
+- ✅ Saran pertanyaan interview
+- ✅ Ringkasan profil lengkap
+- ✅ Laporan teks terformat siap cetak
+- ✅ Panduan penggunaan etis
 
 **Via Directory:**
 1. Copy gambar ke folder `uploads/`

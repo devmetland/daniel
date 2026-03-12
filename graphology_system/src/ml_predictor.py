@@ -25,6 +25,9 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
+# Import interpreter
+from .interpreter import GraphologyInterpreter
+
 
 class GraphologyPredictor:
     """
@@ -49,6 +52,7 @@ class GraphologyPredictor:
         
         self.models = {}
         self.scaler = StandardScaler()
+        self.interpreter = GraphologyInterpreter()  # Add interpreter
         self.feature_names = [
             'stroke_width_mean',
             'stroke_width_std',
@@ -274,6 +278,37 @@ class GraphologyPredictor:
             predictions[target] = float(pred)
         
         return predictions
+    
+    def predict_with_interpretation(self, features: Dict[str, float], 
+                                   candidate_id: str = None) -> Dict:
+        """
+        Predict scores AND generate detailed interpretation with descriptions.
+        
+        Args:
+            features: Dictionary of feature names and values
+            candidate_id: Optional candidate identifier for reporting
+            
+        Returns:
+            Dictionary containing:
+            - scores: Raw numerical predictions
+            - interpretations: Detailed descriptions for each trait
+            - summary: Overall profile summary
+            - report: Formatted text report
+            - ethical_notice: Usage guidelines
+        """
+        # Get raw predictions
+        scores = self.predict(features)
+        
+        # Generate interpretations
+        result = self.interpreter.interpret_all(scores)
+        
+        # Add formatted report if candidate_id provided
+        if candidate_id:
+            result['report'] = self.interpreter.generate_report(scores, candidate_id)
+        else:
+            result['report'] = self.interpreter.generate_report(scores)
+        
+        return result
     
     def predict_batch(self, features_list: List[Dict[str, float]]) -> List[Dict[str, float]]:
         """
