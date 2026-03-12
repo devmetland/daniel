@@ -112,18 +112,21 @@ class DirectoryWatcher:
         """
         print(f"\nProcessing: {file_path.name}")
         
-        # Extract features
-        extractor = GraphologyFeatureExtractor(str(file_path))
-        features = extractor.extract_all_features()
+        # Extract features (using updated API without constructor argument)
+        extractor = GraphologyFeatureExtractor()
+        features = extractor.extract_all_features(str(file_path))
         
-        # Predict scores
+        # Predict scores with interpretation
         predictions = self.predictor.predict(features)
+        interpretation = self.predictor.predict_with_interpretation(features, candidate_id=file_path.stem)
         
         # Save results
         result = {
             "filename": file_path.name,
             "features": features,
             "predictions": predictions,
+            "interpretations": interpretation['interpretations'],
+            "summary": interpretation['summary'],
             "timestamp": datetime.now().isoformat(),
             "disclaimer": "For insight only - not for automated decision making"
         }
@@ -133,12 +136,19 @@ class DirectoryWatcher:
         with open(output_file, 'w') as f:
             json.dump(result, f, indent=2)
         
+        # Also save text report
+        report_file = self.prediction_dir / f"{file_path.stem}_report.txt"
+        with open(report_file, 'w', encoding='utf-8') as f:
+            f.write(interpretation['report'])
+        
         # Mark as processed
         self.mark_processed(file_path)
         
         print(f"  ✓ Features extracted: {len(features)}")
         print(f"  ✓ Predictions generated: {len(predictions)}")
+        print(f"  ✓ Interpretations added")
         print(f"  ✓ Results saved to: {output_file.name}")
+        print(f"  ✓ Report saved to: {report_file.name}")
         
         return result
     

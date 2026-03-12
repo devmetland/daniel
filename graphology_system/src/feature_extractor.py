@@ -25,20 +25,19 @@ warnings.filterwarnings('ignore')
 class GraphologyFeatureExtractor:
     """Extract psychological features from handwriting images."""
     
-    def __init__(self, image_path: str):
+    def __init__(self):
         """
         Initialize the feature extractor.
-        
-        Args:
-            image_path: Path to the handwriting image
+        image_path will be passed to extract_features method for batch processing support.
         """
-        self.image_path = Path(image_path)
+        self.image_path = None
         self.original_image = None
         self.preprocessed_image = None
         self.features = {}
         
-    def load_image(self) -> bool:
+    def load_image(self, image_path: str) -> bool:
         """Load and validate the image."""
+        self.image_path = Path(image_path)
         if not self.image_path.exists():
             raise FileNotFoundError(f"Image not found: {self.image_path}")
         
@@ -270,17 +269,20 @@ class GraphologyFeatureExtractor:
         # Return average defect score
         return float(np.mean(defect_scores))
     
-    def extract_all_features(self) -> Dict[str, float]:
+    def extract_all_features(self, image_path: str) -> Dict[str, float]:
         """
         Extract all graphology features.
         
+        Args:
+            image_path: Path to the handwriting image
+            
         Returns:
             Dictionary of feature names and values
         """
-        print(f"Processing image: {self.image_path}")
+        print(f"Processing image: {image_path}")
         
         # Load and preprocess
-        self.load_image()
+        self.load_image(image_path)
         self.preprocess()
         
         # Extract features
@@ -330,8 +332,8 @@ def process_directory(directory_path: str) -> List[Dict]:
     
     for img_path in image_files:
         try:
-            extractor = GraphologyFeatureExtractor(str(img_path))
-            features = extractor.extract_all_features()
+            extractor = GraphologyFeatureExtractor()
+            features = extractor.extract_all_features(str(img_path))
             features['filename'] = img_path.name
             results.append(features)
             print(f"✓ Processed: {img_path.name}")
