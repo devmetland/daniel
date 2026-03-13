@@ -91,9 +91,9 @@ class GraphologyModelTrainer:
             image_path = row['image_path']
             
             try:
-                # Load dan ekstrak fitur
-                self.extractor.load_image(image_path)
-                features = self.extractor.extract_features()
+                # Extract all features (includes load and preprocess)
+                extractor = GraphologyFeatureExtractor()
+                features = extractor.extract_all_features(image_path)
                 
                 if features:
                     # Tambahkan target scores
