@@ -1,1 +1,1 @@
-(graphology_system/train_tuner.py is a source file, so no files in the changes need to be ignored)
+Nothing should be ignored based on the provided changes. The only modified file is a Python source file (`train_tuner.py`), which should not be added to .gitignore.
