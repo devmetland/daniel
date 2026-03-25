@@ -27,6 +27,9 @@ import pytesseract
 # Untuk membaca metadata file
 import mimetypes
 
+# Import extractor untuk data spesifik
+from data_extractor import DocumentDataExtractor
+
 
 class DocumentReader:
     """Kelas untuk membaca berbagai jenis dokumen."""
@@ -272,6 +275,7 @@ class DocumentDatabase:
             page_count INTEGER,
             paragraph_count INTEGER,
             metadata JSONB,
+            extracted_data JSONB,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             processing_status VARCHAR(50) DEFAULT 'processed',
@@ -282,6 +286,7 @@ class DocumentDatabase:
         CREATE INDEX IF NOT EXISTS idx_documents_filepath ON documents(filepath);
         CREATE INDEX IF NOT EXISTS idx_documents_file_type ON documents(file_type);
         CREATE INDEX IF NOT EXISTS idx_documents_created_at ON documents(created_at);
+        CREATE INDEX IF NOT EXISTS idx_extracted_invoice ON documents USING GIN (extracted_data);
         """
         
         try:
@@ -294,13 +299,15 @@ class DocumentDatabase:
             self.connection.rollback()
             raise
     
-    def save_document(self, file_path: str, read_result: Dict[str, Any]) -> Optional[int]:
+    def save_document(self, file_path: str, read_result: Dict[str, Any], 
+                     extracted_data: Optional[Dict] = None) -> Optional[int]:
         """
         Menyimpan hasil pembacaan dokumen ke database.
         
         Args:
             file_path: Path lengkap file
             read_result: Hasil pembacaan dari DocumentReader
+            extracted_data: Data yang diekstrak (invoice number, tax ID, dll)
             
         Returns:
             ID dokumen yang disimpan, atau None jika gagal
@@ -308,9 +315,9 @@ class DocumentDatabase:
         insert_query = """
         INSERT INTO documents (
             filename, filepath, file_type, file_size_bytes, mime_type,
-            content, page_count, paragraph_count, metadata,
+            content, page_count, paragraph_count, metadata, extracted_data,
             processing_status, error_message
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id;
         """
         
@@ -340,6 +347,7 @@ class DocumentDatabase:
                 read_result.get('page_count'),
                 read_result.get('paragraph_count'),
                 psycopg2.extras.Json(metadata),
+                psycopg2.extras.Json(extracted_data or {}),
                 'error' if error else 'processed',
                 error
             )
@@ -385,6 +393,65 @@ class DocumentDatabase:
         except Exception as e:
             print(f"✗ Gagal mencari dokumen: {e}")
             return []
+
+    def search_by_extracted_data(self, field: str, value: str, limit: int = 100) -> List[Dict]:
+        """
+        Mencari dokumen berdasarkan data yang diekstrak (invoice number, NPWP, dll).
+        
+        Args:
+            field: Field yang dicari (invoice_number, tax_invoice_number, npwp, date, amount)
+            value: Nilai yang dicari
+            limit: Batas hasil
+            
+        Returns:
+            List dokumen yang match
+        """
+        query = """
+        SELECT * FROM documents 
+        WHERE extracted_data->%s @> %s::jsonb
+        ORDER BY created_at DESC 
+        LIMIT %s;
+        """
+        
+        try:
+            # Format value sebagai JSON array untuk pencarian
+            import json
+            json_value = json.dumps([value])
+            
+            with self.connection.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute(query, (field, json_value, limit))
+                return cursor.fetchall()
+        except Exception as e:
+            print(f"✗ Gagal mencari dokumen berdasarkan extracted data: {e}")
+            return []
+
+    def get_documents_by_date_range(self, start_date: str, end_date: str, limit: int = 100) -> List[Dict]:
+        """
+        Mendapatkan dokumen dalam rentang tanggal tertentu.
+        
+        Args:
+            start_date: Tanggal mulai (YYYY-MM-DD)
+            end_date: Tanggal akhir (YYYY-MM-DD)
+            limit: Batas hasil
+        """
+        query = """
+        SELECT * FROM documents 
+        WHERE extracted_data->'date' IS NOT NULL
+        AND EXISTS (
+            SELECT 1 FROM jsonb_array_elements_text(extracted_data->'date') AS date_val
+            WHERE date_val BETWEEN %s AND %s
+        )
+        ORDER BY created_at DESC 
+        LIMIT %s;
+        """
+        
+        try:
+            with self.connection.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute(query, (start_date, end_date, limit))
+                return cursor.fetchall()
+        except Exception as e:
+            print(f"✗ Gagal mencari dokumen berdasarkan rentang tanggal: {e}")
+            return []
     
     def close(self):
         """Menutup koneksi database."""
@@ -412,7 +479,11 @@ class DocumentProcessor:
             'skipped': 0
         }
     
-    def process_directory(self, directory_path: str, recursive: bool = True) -> Dict[str, int]:
+        # Inisialisasi extractor untuk data spesifik
+        self.extractor = DocumentDataExtractor()
+    
+    def process_directory(self, directory_path: str, recursive: bool = True, 
+                         extract_data: bool = True) -> Dict[str, int]:
         """
         Memproses semua dokumen dalam direktori.
         
@@ -469,8 +540,15 @@ class DocumentProcessor:
                     print(f"   ⚠️  Peringatan: {result.get('error', 'Unknown error')}")
                     self.stats['failed'] += 1
                 else:
+                    # Ekstrak data spesifik jika diminta
+                    extracted_data = None
+                    if extract_data and result.get('content'):
+                        extracted_data = self.extractor.extract_all(result['content'])
+                        if extracted_data:
+                            print(f"   📊 Data diekstrak: {list(extracted_data.keys())}")
+                    
                     # Simpan ke database
-                    doc_id = self.db.save_document(str(file_path), result)
+                    doc_id = self.db.save_document(str(file_path), result, extracted_data)
                     if doc_id:
                         content_preview = result.get('content', '')[:100]
                         if content_preview:
@@ -557,20 +635,52 @@ def main():
     print("  - PDF (.pdf)")
     print("  - Word (.doc, .docx)")
     print("  - Gambar (.jpg, .jpeg, .png)")
+    print("\nFitur Ekstraksi Data:")
+    print("  - Nomor Invoice")
+    print("  - Nomor Faktur Pajak")
+    print("  - NPWP")
+    print("  - Tanggal")
+    print("  - Jumlah Uang (Amount)")
+    print("  - Nama Perusahaan")
     print("\n" + "=" * 60)
     
     # Inisialisasi processor
     try:
         processor = DocumentProcessor(DB_CONFIG)
         
-        # Proses direktori
-        stats = processor.process_directory(DOCUMENT_DIRECTORY, recursive=True)
+        # Proses direktori dengan ekstraksi data
+        stats = processor.process_directory(DOCUMENT_DIRECTORY, recursive=True, extract_data=True)
         
         # Tampilkan contoh dokumen yang tersimpan
         print("\n📋 Contoh dokumen tersimpan:")
         docs = processor.db.get_all_documents(limit=5)
         for doc in docs:
             print(f"  - {doc['filename']} (ID: {doc['id']}, Type: {doc['file_type']})")
+            # Tampilkan data yang diekstrak jika ada
+            if doc.get('extracted_data'):
+                ext = doc['extracted_data']
+                if ext.get('invoice_number'):
+                    print(f"      Invoice: {ext['invoice_number']}")
+                if ext.get('tax_invoice_number'):
+                    print(f"      Faktur Pajak: {ext['tax_invoice_number']}")
+                if ext.get('date'):
+                    print(f"      Tanggal: {ext['date']}")
+        
+        # Contoh pencarian berdasarkan data ekstrak
+        print("\n\n🔍 Contoh Pencarian:")
+        print("-" * 40)
+        
+        # Cari berdasarkan nomor invoice
+        print("\nCari Invoice INV-2023-998:")
+        results = processor.db.search_by_extracted_data('invoice_number', 'INV-2023-998')
+        for doc in results:
+            print(f"  Ditemukan: {doc['filename']}")
+        
+        # Cari berdasarkan rentang tanggal
+        print("\nCari dokumen tanggal 01/01/2023 - 31/12/2023:")
+        results = processor.db.get_documents_by_date_range('2023-01-01', '2023-12-31')
+        for doc in results:
+            print(f"  Ditemukan: {doc['filename']} - {doc.get('extracted_data', {}).get('date', [])}")
         
         processor.close()
         
