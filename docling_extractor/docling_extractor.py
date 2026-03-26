@@ -338,6 +338,45 @@ class DoclingExtractor:
         
         return npwp
     
+    def extract(self, file_path: str) -> Dict[str, Any]:
+        """
+        Extract data from a file (alias for process_file with dict output)
+        
+        Args:
+            file_path: Path to the file
+            
+        Returns:
+            Dictionary with extracted data
+        """
+        data = self.process_file(file_path)
+        return {
+            "raw_text": data.full_text,
+            "extracted_data": {
+                "invoice_number": data.invoice_number,
+                "tax_invoice_number": data.tax_invoice_number,
+                "npwp": data.npwp,
+                "date": data.date,
+                "due_date": data.due_date,
+                "amount": data.amount,
+                "tax_amount": data.tax_amount,
+                "total_amount": data.total_amount,
+                "currency": data.currency,
+                "vendor_name": data.vendor_name,
+                "customer_name": data.customer_name,
+                "email": data.email,
+                "phone": data.phone
+            },
+            "metadata": {
+                "file_path": data.file_path,
+                "file_name": data.file_name,
+                "file_type": data.file_type,
+                "file_size": data.file_size,
+                "processed_date": data.processed_date,
+                "tables": data.tables,
+                "document_structure": data.document_structure
+            }
+        }
+    
     def process_directory(self, directory: str, recursive: bool = True) -> List[ExtractedData]:
         """
         Proses semua dokumen dalam direktori
