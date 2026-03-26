@@ -87,6 +87,7 @@ class DoclingExtractor:
             enable_ocr: Aktifkan OCR untuk dokumen scan/image
             ocr_engine: Engine OCR yang digunakan (default: tesseract)
         """
+        # Konfigurasi pipeline options untuk PDF
         pipeline_options = PdfPipelineOptions()
         
         if enable_ocr:
@@ -97,6 +98,12 @@ class DoclingExtractor:
         else:
             pipeline_options.do_ocr = False
         
+        # Import PdfFormatOption untuk konfigurasi yang benar
+        from docling.document_converter import PdfFormatOption
+        
+        # Buat format option untuk PDF dengan pipeline_options
+        pdf_format_option = PdfFormatOption(pipeline_options=pipeline_options)
+        
         # Inisialisasi converter dengan format yang didukung
         self.converter = DocumentConverter(
             allowed_formats=[
@@ -104,7 +111,9 @@ class DoclingExtractor:
                 InputFormat.DOCX,
                 InputFormat.IMAGE  # JPG, JPEG, PNG
             ],
-            pipeline_options=pipeline_options
+            format_options={
+                InputFormat.PDF: pdf_format_option
+            }
         )
         
         # Pola regex untuk ekstraksi data spesifik
