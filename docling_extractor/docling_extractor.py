@@ -79,16 +79,17 @@ class DoclingExtractor:
     Kelas utama untuk ekstraksi dokumen menggunakan Docling
     """
     
-    def __init__(self, ocr_enabled: bool = True):
+    def __init__(self, enable_ocr: bool = True, ocr_engine: str = "tesseract"):
         """
         Inisialisasi Docling Converter
         
         Args:
-            ocr_enabled: Aktifkan OCR untuk dokumen scan/image
+            enable_ocr: Aktifkan OCR untuk dokumen scan/image
+            ocr_engine: Engine OCR yang digunakan (default: tesseract)
         """
         pipeline_options = PdfPipelineOptions()
         
-        if ocr_enabled:
+        if enable_ocr:
             # Konfigurasi OCR dengan Tesseract
             ocr_options = TesseractCliOcrOptions()
             pipeline_options.ocr_options = ocr_options
