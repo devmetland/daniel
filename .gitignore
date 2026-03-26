@@ -1,12 +1,35 @@
 ```
-# Dependencies
+# Environment
+.env
+.env.local
+*.env.*
+
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.py~
 *.py.class
-*.py.obj
-*.py.out
+*.py.backup
+*.swp
+*.swo
+
+# Dependencies
+venv/
+.venv/
+.env/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+*.tmp
 
 # Distribution / packaging
 .Python
@@ -26,44 +49,13 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual environments
-venv/
-ENV/
-env/
-.venv/
-.env/
-env.bak/
-ENV.bak/
-
-# IDE and editor files
+# IDEs
 .vscode/
 .idea/
 *.swp
 *.swo
-*.tmp
 
-# Logs
-*.log
-
-# Environment variables
-.env
-.env.local
-*.env.*
-
-# Coverage reports
-.coverage
-coverage/
-htmlcov/
-
-# MyPy cache
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pytest cache
-.pytest_cache/
-
-# OS generated files
+# OS
 .DS_Store
 Thumbs.db
 ```

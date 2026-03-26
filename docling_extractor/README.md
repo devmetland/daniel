@@ -29,6 +29,7 @@ Docling adalah library modern dari IBM yang unggul dalam:
 - 💾 **Penyimpanan JSONB** - Semua data tersimpan dalam format JSON untuk fleksibilitas
 - 🔄 **Upsert otomatis** - Update data jika file sudah pernah diproses
 - 📁 **Batch processing** - Proses seluruh direktori sekaligus
+- ⚙️ **Konfigurasi berbasis file .env** - Mudah dikonfigurasi tanpa parameter command line
 
 ## Instalasi
 
@@ -36,7 +37,7 @@ Docling adalah library modern dari IBM yang unggul dalam:
 
 ```bash
 cd /workspace/docling_extractor
-pip install docling psycopg2-binary
+pip install -r requirements.txt
 ```
 
 ### 2. Install Tesseract OCR (Opsional, untuk dokumen scan)
@@ -60,87 +61,171 @@ Download installer dari: https://github.com/UB-Mannheim/tesseract/wiki
 
 ```sql
 -- Buat database baru
-CREATE DATABASE document_extractor;
+CREATE DATABASE document_db;
 
 -- Atau gunakan database yang sudah ada
 ```
 
-Catat connection string Anda:
-```
-dbname=document_extractor user=postgres password=yourpassword host=localhost port=5432
+### 4. Konfigurasi
+
+Edit file `config.env` sesuai dengan environment Anda:
+
+```bash
+# Database Configuration
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=document_db
+DB_USER=postgres
+DB_PASSWORD=your_password_here
+
+# Input Directory Configuration
+INPUT_DIRECTORY=/path/to/your/documents
+
+# Processing Configuration
+ENABLE_OCR=true
+SAVE_RAW_TEXT=true
+SAVE_EXTRACTED_DATA=true
+
+# Docling Configuration
+DOCLING_MODEL=default
+DOCLING_OCR_ENGINE=tesseract
+
+# Logging Configuration
+LOG_LEVEL=INFO
+LOG_FILE=logs/docling_extractor.log
 ```
 
 ## Cara Menggunakan
 
-### Mode 1: Ekstrak File Tunggal
+### Mode 1: Inisialisasi Database
+
+Pertama, buat tabel di database:
 
 ```bash
-python docling_extractor.py \
-  --input /path/to/invoice.pdf \
-  --db-connection "dbname=document_extractor user=postgres password=secret host=localhost"
+python main.py --init-db
 ```
 
-### Mode 2: Ekstrak Seluruh Direktori
+Atau dengan config custom:
 
 ```bash
-python docling_extractor.py \
-  --input /path/to/documents \
-  --db-connection "dbname=document_extractor user=postgres password=secret host=localhost"
+python main.py --config /path/to/custom.env --init-db
 ```
 
-### Mode 3: Pencarian Dokumen
+### Mode 2: Ekstrak File Tunggal
+
+```bash
+python main.py --file /path/to/invoice.pdf
+```
+
+Dengan config custom:
+
+```bash
+python main.py --config /path/to/custom.env --file /path/to/invoice.pdf
+```
+
+### Mode 3: Ekstrak Seluruh Direktori
+
+Menggunakan direktori dari config:
+
+```bash
+python main.py
+```
+
+Override direktori dari config:
+
+```bash
+python main.py --directory /path/to/documents
+```
+
+### Mode 4: Pencarian Dokumen
 
 Cari berdasarkan nomor invoice:
+
 ```bash
-python docling_extractor.py \
-  --db-connection "dbname=document_extractor user=postgres password=secret host=localhost" \
-  --search "INV-2024-001" \
-  --field invoice_number
+python main.py --search-field invoice_number --search-value INV-2024
 ```
 
 Cari berdasarkan NPWP:
-```bash
-python docling_extractor.py \
-  --db-connection "dbname=document_extractor user=postgres password=secret host=localhost" \
-  --search "01.234.567.8-901.000" \
-  --field npwp
-```
-
-### Mode 4: Lihat Statistik
 
 ```bash
-python docling_extractor.py \
-  --db-connection "dbname=document_extractor user=postgres password=secret host=localhost" \
-  --stats
+python main.py --search-field npwp --search-value 01.234.567.8-901.000
 ```
 
-### Mode 5: Tanpa OCR (Untuk dokumen teks native)
+Dengan config custom:
 
 ```bash
-python docling_extractor.py \
-  --input /path/to/documents \
-  --db-connection "dbname=document_extractor user=postgres password=secret host=localhost" \
-  --no-ocr
+python main.py --config /path/to/custom.env --search-field invoice_number --search-value INV-2024
 ```
 
-## Contoh Output
+## Penggunaan sebagai Library Python
 
+### Contoh Dasar
+
+```python
+from main import DoclingProcessor
+
+# Inisialisasi dengan config default
+processor = DoclingProcessor()
+
+# Proses satu file
+result = processor.process_file("invoice.pdf")
+print(f"Document ID: {result['document_id']}")
+print(f"Extracted Data: {result['extracted_data']}")
+
+# Proses direktori
+results = processor.process_directory()
+print(f"Processed {results['successful']} files successfully")
+
+# Cari dokumen
+invoices = processor.search_by_field('invoice_number', 'INV-2024')
+for doc in invoices:
+    print(doc['file_name'], doc['extracted_data'])
+
+# Close connection
+processor.close()
 ```
-============================================================
-HASIL EKSTRAKSI
-============================================================
-File: invoice_001.pdf
-Tipe: .pdf
 
-Data Spesifik:
-  No. Invoice: INV-2024-001
-  No. Faktur Pajak: 012.345-67.8901234
-  NPWP: 01.234.567.8-901.000
-  Tanggal: 15/01/2024
-  Amount: 10000000.0
-  Total: 11100000.0
-  Vendor: PT Contoh Sejahtera
-✓ Dokumen disimpan dengan ID: 1
+### Contoh dengan Config Custom
+
+```python
+from main import DoclingProcessor
+from config import Config
+
+# Load config dari file custom
+config = Config("/path/to/custom.env")
+
+# Inisialisasi processor
+processor = DoclingProcessor(config=config)
+
+# Proses file
+result = processor.process_file("invoice.pdf")
+print(result['extracted_data'])
+
+processor.close()
+```
+
+### Contoh Ekstraksi Data Spesifik
+
+```python
+from main import DoclingProcessor
+
+processor = DoclingProcessor()
+
+# Proses file invoice
+result = processor.process_file("invoice.pdf")
+
+# Akses data spesifik
+extracted = result['extracted_data']
+print(f"Invoice Number: {extracted.get('invoice_number')}")
+print(f"Tax Invoice Number: {extracted.get('tax_invoice_number')}")
+print(f"NPWP: {extracted.get('npwp')}")
+print(f"Date: {extracted.get('date')}")
+print(f"Amount: {extracted.get('amount')}")
+print(f"Total Amount: {extracted.get('total_amount')}")
+print(f"Vendor Name: {extracted.get('vendor_name')}")
+print(f"Customer Name: {extracted.get('customer_name')}")
+
+processor.close()
 ```
 
 ## Struktur Database
@@ -153,56 +238,44 @@ Tabel `documents` memiliki kolom-kolom berikut:
 | `file_path` | VARCHAR | Path lengkap file |
 | `file_name` | VARCHAR | Nama file |
 | `file_type` | VARCHAR | Ekstensi file (.pdf, .docx, dll) |
-| `invoice_number` | VARCHAR | Nomor invoice |
-| `tax_invoice_number` | VARCHAR | Nomor faktur pajak |
-| `npwp` | VARCHAR | NPWP perusahaan |
-| `date` | DATE | Tanggal dokumen |
-| `amount` | DECIMAL | Jumlah uang |
-| `total_amount` | DECIMAL | Total termasuk pajak |
-| `vendor_name` | TEXT | Nama vendor |
-| `customer_name` | TEXT | Nama customer |
-| `extracted_data` | JSONB | Semua data ekstraksi dalam JSON |
-| `tables` | JSONB | Data tabel dari dokumen |
+| `file_size` | BIGINT | Ukuran file dalam bytes |
+| `raw_text` | TEXT | Teks lengkap hasil ekstraksi |
+| `extracted_data` | JSONB | Data terstruktur (invoice_number, npwp, dll) |
+| `metadata` | JSONB | Metadata dokumen |
 | `created_at` | TIMESTAMP | Waktu pembuatan record |
+| `updated_at` | TIMESTAMP | Waktu update terakhir |
+| `processing_status` | VARCHAR | Status pemrosesan (success/error) |
+| `error_message` | TEXT | Pesan error jika gagal |
 
-## Penggunaan sebagai Library Python
+### Contoh Data extracted_data
 
-```python
-from docling_extractor import DoclingExtractor, DocumentDatabase, ExtractedData
-
-# Inisialisasi
-extractor = DoclingExtractor(ocr_enabled=True)
-db = DocumentDatabase("dbname=xxx user=xxx password=xxx")
-
-# Proses satu file
-data = extractor.process_file("invoice.pdf")
-
-# Akses data spesifik
-print(f"Invoice Number: {data.invoice_number}")
-print(f"Total Amount: {data.total_amount}")
-print(f"NPWP: {data.npwp}")
-
-# Simpan ke database
-db.save_document(data)
-
-# Proses direktori
-results = extractor.process_directory("./documents", recursive=True)
-
-# Cari dokumen
-invoices = db.search_by_field('invoice_number', 'INV-2024')
-for doc in invoices:
-    print(doc['file_name'], doc['amount'])
+```json
+{
+  "invoice_number": "INV-2024-001",
+  "tax_invoice_number": "012.345-67.890123",
+  "npwp": "01.234.567.8-901.000",
+  "date": "2024-01-15",
+  "due_date": "2024-02-15",
+  "amount": 10000000,
+  "tax_amount": 1100000,
+  "total_amount": 11100000,
+  "currency": "IDR",
+  "vendor_name": "PT Example Vendor",
+  "vendor_address": "Jl. Sudirman No. 1, Jakarta",
+  "customer_name": "PT Example Customer",
+  "customer_address": "Jl. Gatot Subroto No. 2, Jakarta",
+  "email": "billing@example.com",
+  "phone": "+62-21-1234567"
+}
 ```
 
 ## Kustomisasi Pola Ekstraksi
 
-Anda dapat menambahkan atau memodifikasi pola regex untuk kebutuhan spesifik:
+Anda dapat menambahkan atau memodifikasi pola regex untuk kebutuhan spesifik di `docling_extractor.py`:
 
 ```python
-extractor = DoclingExtractor()
-
 # Tambah pola custom
-extractor.patterns['purchase_order'] = {
+self.patterns['purchase_order'] = {
     'pattern': r'(?:PO|Purchase Order|No\. PO)\s*[:.]?\s*([A-Z0-9\-/]+)',
     'flags': re.IGNORECASE
 }
@@ -220,7 +293,7 @@ extractor.patterns['purchase_order'] = {
 
 ## Troubleshooting
 
-### Error: "Docling belum terinstall"
+### Error: "ModuleNotFoundError: No module named 'docling'"
 ```bash
 pip install docling
 ```
@@ -229,16 +302,26 @@ pip install docling
 Install Tesseract OCR sesuai OS Anda (lihat bagian Instalasi).
 
 ### Error: Koneksi Database
-Pastikan PostgreSQL berjalan dan connection string benar:
+Pastikan PostgreSQL berjalan dan konfigurasi di `config.env` benar:
 ```bash
 # Test koneksi
-psql "dbname=document_extractor user=postgres password=secret host=localhost"
+psql "dbname=document_db user=postgres password=secret host=localhost"
 ```
+
+### Error: "INPUT_DIRECTORY does not exist"
+Pastikan direktori input sudah dibuat atau ubah konfigurasi `INPUT_DIRECTORY` di `config.env`.
 
 ### Ekstraksi Tidak Akurat
 1. Pastikan kualitas dokumen baik (tidak buram)
-2. Aktifkan OCR dengan `--no-ocr` dihilangkan
+2. Aktifkan OCR (`ENABLE_OCR=true` di config)
 3. Tambahkan pola regex custom untuk format khusus
+
+## Best Practices
+
+1. **Backup Database**: Selalu backup database sebelum proses batch besar
+2. **Log Monitoring**: Periksa file log secara berkala untuk error
+3. **Incremental Processing**: File yang sudah diproses akan di-update, bukan duplikasi
+4. **Resource Management**: Tutup connection dengan `processor.close()` setelah selesai
 
 ## Lisensi
 
