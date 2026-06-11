@@ -55,6 +55,14 @@ class Config:
         self.docling_model = os.getenv("DOCLING_MODEL", "default")
         self.docling_ocr_engine = os.getenv("DOCLING_OCR_ENGINE", "tesseract")
         
+        # LLM Configuration
+        self.llm_enabled = os.getenv("LLM_ENABLED", "false").lower() == "true"
+        self.llm_base_url = os.getenv("LLM_BASE_URL", "http://localhost:8000/v1")
+        self.llm_api_key = os.getenv("LLM_API_KEY", "empty")
+        self.llm_model = os.getenv("LLM_MODEL", "Qwen/Qwen2.5-7B-Instruct")
+        self.llm_timeout = int(os.getenv("LLM_TIMEOUT", "120"))
+        self.llm_max_retries = int(os.getenv("LLM_MAX_RETRIES", "3"))
+        
         # Logging Configuration
         self.log_level = os.getenv("LOG_LEVEL", "INFO")
         self.log_file = os.getenv("LOG_FILE", "logs/docling_extractor.log")
@@ -121,6 +129,9 @@ Config(
   Input Directory: {self.input_directory}
   OCR Enabled: {self.enable_ocr}
   OCR Engine: {self.docling_ocr_engine}
+  LLM Enabled: {self.llm_enabled}
+  LLM Model: {self.llm_model}
+  LLM Base URL: {self.llm_base_url}
   Log Level: {self.log_level}
   Log File: {self.log_file}
 )

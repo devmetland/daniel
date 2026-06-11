@@ -14,6 +14,7 @@ from datetime import datetime
 from config import get_config, Config
 from docling_extractor import DoclingExtractor
 from database import DocumentDatabase
+from llm_extractor import LLMExtractor
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -39,6 +40,18 @@ class DoclingProcessor:
             ocr_engine=self.config.docling_ocr_engine
         )
         self.db = DocumentDatabase(self.config.db_config_dict)
+        
+        # Initialize LLM extractor if enabled
+        self.llm_extractor = None
+        if self.config.llm_enabled:
+            self.llm_extractor = LLMExtractor(
+                base_url=self.config.llm_base_url,
+                api_key=self.config.llm_api_key,
+                model=self.config.llm_model,
+                timeout=self.config.llm_timeout,
+                max_retries=self.config.llm_max_retries
+            )
+            logger.info(f"LLM Extractor initialized (Model: {self.config.llm_model})")
         
         logger.info(f"Initialized DoclingProcessor with config: {self.config}")
     
@@ -92,8 +105,27 @@ class DoclingProcessor:
             try:
                 logger.info(f"Processing: {file_path.name}")
                 
-                # Extract content and data
+                # Step 1: Extract content and data using Docling
                 extraction_result = self.extractor.extract(file_path)
+                
+                # Step 2: If LLM is enabled, use it to extract structured data from raw text
+                if self.llm_extractor and extraction_result.get("raw_text"):
+                    logger.info(f"Using LLM to extract structured data from {file_path.name}")
+                    try:
+                        llm_extracted_data = self.llm_extractor.extract_sync(
+                            extraction_result["raw_text"]
+                        )
+                        if llm_extracted_data:
+                            # Merge LLM extracted data with Docling extracted data
+                            # LLM data takes precedence for better accuracy
+                            extraction_result["extracted_data"] = {
+                                **extraction_result.get("extracted_data", {}),
+                                **llm_extracted_data
+                            }
+                            logger.info(f"LLM extraction completed for {file_path.name}")
+                    except Exception as llm_error:
+                        logger.warning(f"LLM extraction failed for {file_path.name}: {str(llm_error)}")
+                        # Continue with Docling extracted data
                 
                 # Save to database
                 doc_id = self.db.save_document(
@@ -130,8 +162,26 @@ class DoclingProcessor:
         
         logger.info(f"Processing file: {file_path}")
         
-        # Extract content and data
+        # Step 1: Extract content and data using Docling
         extraction_result = self.extractor.extract(path)
+        
+        # Step 2: If LLM is enabled, use it to extract structured data from raw text
+        if self.llm_extractor and extraction_result.get("raw_text"):
+            logger.info(f"Using LLM to extract structured data from {file_path}")
+            try:
+                llm_extracted_data = self.llm_extractor.extract_sync(
+                    extraction_result["raw_text"]
+                )
+                if llm_extracted_data:
+                    # Merge LLM extracted data with Docling extracted data
+                    extraction_result["extracted_data"] = {
+                        **extraction_result.get("extracted_data", {}),
+                        **llm_extracted_data
+                    }
+                    logger.info(f"LLM extraction completed for {file_path}")
+            except Exception as llm_error:
+                logger.warning(f"LLM extraction failed for {file_path}: {str(llm_error)}")
+                # Continue with Docling extracted data
         
         # Save to database
         doc_id = self.db.save_document(

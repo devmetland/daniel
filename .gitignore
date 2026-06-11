@@ -1,5 +1,10 @@
 ```
-# Python
+# Environment files
+.env
+.env.local
+*.env.*
+
+# Python specific
 __pycache__/
 *.pyc
 *.pyo
@@ -8,8 +13,6 @@ __pycache__/
 env/
 venv/
 .venv/
-.ENV
-.python-version
 pip-log.txt
 pip-delete-this-directory.txt
 .tox/
@@ -20,46 +23,37 @@ nosetests.xml
 coverage.xml
 *.cover
 *.log
-*.pot
-*.pyc
-*.pyo
-*.pyd
-*.so
-*.egg-info/
-.eggs/
-
-# Build artifacts
-build/
-dist/
-*.egg
-*.pyc
-*.pyo
-*.pyd
-*.so
-*.egg-info/
-.eggs/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
 *.tmp
 
-# Environment
-.env
-.env.local
-*.env.*
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# OS
+# IDEs
+.vscode/
+.idea/
+
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
-
-# Testing
-.coverage
-htmlcov/
-.coverage.*
-.nox/
-.pytest_cache/
-.mypy_cache/
 ```
