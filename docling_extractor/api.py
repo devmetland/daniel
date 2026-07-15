@@ -66,13 +66,14 @@ async def startup_event():
         
         # Inisialisasi koneksi database
         logger.info("Menginisialisasi koneksi database...")
-        db = DocumentDatabase(
-            db_host=config.db_host,
-            db_port=config.db_port,
-            db_name=config.db_name,
-            db_user=config.db_user,
-            db_password=config.db_password
-        )
+        db_config = {
+            "host": config.db_host,
+            "port": config.db_port,
+            "database": config.db_name,
+            "user": config.db_user,
+            "password": config.db_password
+        }
+        db = DocumentDatabase(db_config=db_config)
         logger.info("Koneksi database berhasil.")
         
         # Inisialisasi Docling Extractor
